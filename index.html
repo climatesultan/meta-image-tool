@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Meta Image Tool</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0d10;
+      --card: #15191f;
+      --border: #2a3038;
+      --text: #f3f5f7;
+      --muted: #9ca6b2;
+      --accent: #ffffff;
+      --accentText: #0b0d10;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .card {
+      width: min(680px, 100%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    .subtitle { margin: 0 0 24px; color: var(--muted); line-height: 1.5; }
+    .upload {
+      display: block;
+      padding: 22px;
+      border: 1px dashed #48515d;
+      border-radius: 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: .2s;
+    }
+    .upload:hover { border-color: #87919e; background: #191e25; }
+    .upload input { display: none; }
+    .filename { margin-top: 10px; color: var(--muted); font-size: 14px; word-break: break-word; }
+    .preview {
+      display: none;
+      margin-top: 20px;
+      text-align: center;
+    }
+    .preview img {
+      max-width: 100%;
+      max-height: 420px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    button {
+      width: 100%;
+      margin-top: 18px;
+      padding: 14px 18px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--accent);
+      color: var(--accentText);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    #downloadBtn { display: none; background: #242a32; color: var(--text); }
+    .status {
+      min-height: 22px;
+      margin-top: 16px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+    }
+    .info {
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      background: #101318;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .success { color: #b9f6c9; }
+    .error { color: #ffb4b4; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Meta Image Tool</h1>
+    <p class="subtitle">Convert and prepare JPEG images directly in your browser.</p>
+
+    <label class="upload">
+      <input id="fileInput" type="file" accept="image/jpeg,.jpg,.jpeg">
+      <strong>Select a JPG or JPEG image</strong>
+      <div class="filename" id="filename">No image selected</div>
+    </label>
+
+    <div class="preview" id="preview">
+      <img id="previewImage" alt="Image preview">
+    </div>
+
+    <button id="convertBtn" disabled>Convert Image</button>
+    <button id="downloadBtn">Download Converted JPEG</button>
+
+    <div class="status" id="status"></div>
+
+    <div class="info">
+      Processing happens locally in your browser. The output is normalized for
+      orientation, center-cropped proportionally to 3:4, resized to exactly
+      <strong>3024 × 4032</strong>, and given a minimal JPEG EXIF block.
+    </div>
+  </main>
+
+<script>
+"use strict";
+
+const TARGET_WIDTH = 3024;
+const TARGET_HEIGHT = 4032;
+const TARGET_MAKE = "Meta AI";
+const TARGET_MODEL = "Ray-Ban Meta Smart Glasses 2";
+
+const fileInput = document.getElementById("fileInput");
+const filename = document.getElementById("filename");
+const preview = document.getElementById("preview");
+const previewImage = document.getElementById("previewImage");
+const convertBtn = document.getElementById("convertBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const statusEl = document.getElementById("status");
+
+let currentImageDataUrl = null;
+let convertedDataUrl = null;
+
+fileInput.addEventListener("change", async () => {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) return;
+
+  if (!file.type || file.type !== "image/jpeg") {
+    setStatus("Please select a JPG or JPEG image.", true);
+    convertBtn.disabled = true;
+    return;
+  }
+
+  try {
+    currentImageDataUrl = await readFileAsDataURL(file);
+    filename.textContent = file.name;
+    previewImage.src = currentImageDataUrl;
+    preview.style.display = "block";
+    convertBtn.disabled = false;
+    downloadBtn.style.display = "none";
+    convertedDataUrl = null;
+    setStatus("");
+  } catch (err) {
+    setStatus("Could not read the image.", true);
+  }
+});
+
+convertBtn.addEventListener("click", async () => {
+  if (!currentImageDataUrl) return;
+
+  convertBtn.disabled = true;
+  downloadBtn.style.display = "none";
+  setStatus("Processing image...");
+
+  try {
+    const orientation = getExifOrientation(currentImageDataUrl);
+    const image = await loadImage(currentImageDataUrl);
+
+    const normalizedCanvas = normalizeOrientation(image, orientation);
+    const finalCanvas = resizeToTarget(normalizedCanvas);
+
+    // Canvas re-encoding creates a clean JPEG without the original EXIF.
+    const cleanJpeg = finalCanvas.toDataURL("image/jpeg", 0.95);
+
+    // Add only the intended minimal EXIF metadata.
+    const exifData = createExifData(TARGET_WIDTH, TARGET_HEIGHT);
+    convertedDataUrl = insertExifIntoJpeg(cleanJpeg, exifData);
+
+    previewImage.src = convertedDataUrl;
+
+    const base64 = convertedDataUrl.split(",")[1];
+    await copyText(base64);
+
+    downloadBtn.style.display = "block";
+
+    setStatus(
+      "Done. The converted JPEG Base64 has been copied to your clipboard.",
+      false,
+      true
+    );
+  } catch (err) {
+    console.error(err);
+    setStatus("Conversion failed: " + (err.message || err), true);
+  } finally {
+    convertBtn.disabled = false;
+  }
+});
+
+downloadBtn.addEventListener("click", () => {
+  if (!convertedDataUrl) return;
+
+  const a = document.createElement("a");
+  a.href = convertedDataUrl;
+  a.download = "converted-image.jpg";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
+
+function setStatus(message, error = false, success = false) {
+  statusEl.textContent = message;
+  statusEl.className = "status" + (error ? " error" : success ? " success" : "");
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Invalid or unreadable JPEG."));
+    img.src = dataUrl;
+  });
+}
+
+/* ---------------- EXIF ORIENTATION READER ---------------- */
+
+function getExifOrientation(dataUrl) {
+  try {
+    const binary = atob(dataUrl.split(",")[1]);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) {
+      return 1;
+    }
+
+    let offset = 2;
+
+    while (offset + 4 <= bytes.length) {
+      if (bytes[offset] !== 0xFF) {
+        offset++;
+        continue;
+      }
+
+      const marker = bytes[offset + 1];
+
+      if (marker === 0xD8 || marker === 0xD9) {
+        offset += 2;
+        continue;
+      }
+
+      if (offset + 4 > bytes.length) break;
+
+      const segmentLength = (bytes[offset + 2] << 8) | bytes[offset + 3];
+
+      if (marker === 0xE1 && segmentLength >= 8) {
+        const exifStart = offset + 4;
+
+        if (
+          bytes[exifStart] === 0x45 &&
+          bytes[exifStart + 1] === 0x78 &&
+          bytes[exifStart + 2] === 0x69 &&
+          bytes[exifStart + 3] === 0x66 &&
+          bytes[exifStart + 4] === 0x00 &&
+          bytes[exifStart + 5] === 0x00
+        ) {
+          return readTiffOrientation(bytes, exifStart + 6);
+        }
+      }
+
+      offset += 2 + segmentLength;
+    }
+  } catch (e) {
+    console.warn("Could not read EXIF orientation:", e);
+  }
+
+  return 1;
+}
+
+function readTiffOrientation(bytes, tiffOffset) {
+  if (tiffOffset + 8 > bytes.length) return 1;
+
+  const byteOrder =
+    String.fromCharCode(bytes[tiffOffset]) +
+    String.fromCharCode(bytes[tiffOffset + 1]);
+
+  const littleEndian = byteOrder === "II";
+
+  const read16 = (pos) => {
+    if (pos + 2 > bytes.length) return 0;
+    return littleEndian
+      ? bytes[pos] | (bytes[pos + 1] << 8)
+      : (bytes[pos] << 8) | bytes[pos + 1];
+  };
+
+  const read32 = (pos) => {
+    if (pos + 4 > bytes.length) return 0;
+    return littleEndian
+      ? (
+          bytes[pos] |
+          (bytes[pos + 1] << 8) |
+          (bytes[pos + 2] << 16) |
+          (bytes[pos + 3] << 24)
+        ) >>> 0
+      : (
+          (bytes[pos] << 24) |
+          (bytes[pos + 1] << 16) |
+          (bytes[pos + 2] << 8) |
+          bytes[pos + 3]
+        ) >>> 0;
+  };
+
+  if (read16(tiffOffset + 2) !== 42) return 1;
+
+  const ifdOffset = read32(tiffOffset + 4);
+  const ifdStart = tiffOffset + ifdOffset;
+
+  if (ifdStart + 2 > bytes.length) return 1;
+
+  const entryCount = read16(ifdStart);
+
+  for (let i = 0; i < entryCount; i++) {
+    const entry = ifdStart + 2 + i * 12;
+
+    if (entry + 12 > bytes.length) break;
+
+    const tag = read16(entry);
+
+    if (tag === 274) {
+      const type = read16(entry + 2);
+      const count = read32(entry + 4);
+
+      if (type === 3 && count >= 1) {
+        const value = read16(entry + 8);
+        return value >= 1 && value <= 8 ? value : 1;
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* ---------------- ORIENTATION NORMALIZATION ---------------- */
+
+function normalizeOrientation(image, orientation) {
+  const swapDimensions =
+    orientation === 5 ||
+    orientation === 6 ||
+    orientation === 7 ||
+    orientation === 8;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = swapDimensions ? image.height : image.width;
+  canvas.height = swapDimensions ? image.width : image.height;
+
+  const ctx = canvas.getContext("2d");
+
+  switch (orientation) {
+    case 2:
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      break;
+
+    case 3:
+      ctx.translate(canvas.width, canvas.height);
+      ctx.rotate(Math.PI);
+      break;
+
+    case 4:
+      ctx.translate(0, canvas.height);
+      ctx.scale(1, -1);
+      break;
+
+    case 5:
+      ctx.setTransform(0, 1, 1, 0, 0, 0);
+      break;
+
+    case 6:
+      ctx.translate(canvas.width, 0);
+      ctx.rotate(Math.PI / 2);
+      break;
+
+    case 7:
+      ctx.setTransform(0, -1, -1, 0, canvas.width, canvas.height);
+      break;
+
+    case 8:
+      ctx.translate(0, canvas.height);
+      ctx.rotate(-Math.PI / 2);
+      break;
+
+    default:
+      break;
+  }
+
+  ctx.drawImage(image, 0, 0);
+  return canvas;
+}
+
+/* ---------------- 3:4 CROP + RESIZE ---------------- */
+
+function resizeToTarget(sourceCanvas) {
+  const sourceWidth = sourceCanvas.width;
+  const sourceHeight = sourceCanvas.height;
+
+  const targetRatio = TARGET_WIDTH / TARGET_HEIGHT;
+  const sourceRatio = sourceWidth / sourceHeight;
+
+  let cropWidth = sourceWidth;
+  let cropHeight = sourceHeight;
+  let cropX = 0;
+  let cropY = 0;
+
+  if (sourceRatio > targetRatio) {
+    // Too wide: crop left and right.
+    cropWidth = sourceHeight * targetRatio;
+    cropX = (sourceWidth - cropWidth) / 2;
+  } else if (sourceRatio < targetRatio) {
+    // Too tall/narrow: crop top and bottom.
+    cropHeight = sourceWidth / targetRatio;
+    cropY = (sourceHeight - cropHeight) / 2;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = TARGET_WIDTH;
+  canvas.height = TARGET_HEIGHT;
+
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  ctx.drawImage(
+    sourceCanvas,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    TARGET_WIDTH,
+    TARGET_HEIGHT
+  );
+
+  return canvas;
+}
+
+/* ---------------- MINIMAL EXIF WRITER ---------------- */
+
+function createExifData(width, height) {
+  const makeBytes = asciiBytes(TARGET_MAKE + "\0");
+  const modelBytes = asciiBytes(TARGET_MODEL + "\0");
+
+  // TIFF:
+  // Header 8 bytes
+  // 0th IFD: 7 entries + next-IFD pointer
+  // Make string
+  // Model string
+  // Exif IFD
+  // Exif values
+
+  const ifd0Count = 6;
+  const ifd0Size = 2 + ifd0Count * 12 + 4;
+  const ifd0Offset = 8;
+
+  const makeOffset = ifd0Offset + ifd0Size;
+  const modelOffset = makeOffset + makeBytes.length;
+
+  const exifIfdOffset = modelOffset + modelBytes.length;
+
+  const exifCount = 3;
+  const exifIfdSize = 2 + exifCount * 12 + 4;
+
+  const totalTiffSize = exifIfdOffset + exifIfdSize;
+
+  const buffer = new ArrayBuffer(totalTiffSize);
+  const view = new DataView(buffer);
+
+  // Big-endian TIFF.
+  writeAscii(buffer, 0, "MM");
+  view.setUint16(2, 42, false);
+  view.setUint32(4, ifd0Offset, false);
+
+  let p = ifd0Offset;
+
+  view.setUint16(p, ifd0Count, false);
+  p += 2;
+
+  // ImageWidth
+  writeIfdEntry(view, p, 256, 4, 1, width);
+  p += 12;
+
+  // ImageLength
+  writeIfdEntry(view, p, 257, 4, 1, height);
+  p += 12;
+
+  // Make
+  writeIfdEntry(view, p, 271, 2, makeBytes.length, makeOffset);
+  p += 12;
+
+  // Model
+  writeIfdEntry(view, p, 272, 2, modelBytes.length, modelOffset);
+  p += 12;
+
+  // Orientation = 1
+  writeIfdEntry(view, p, 274, 3, 1, 1);
+  p += 12;
+
+  // ExifIFDPointer
+  writeIfdEntry(view, p, 34665, 4, 1, exifIfdOffset);
+  p += 12;
+
+  // Next IFD = 0
+  view.setUint32(p, 0, false);
+
+  // Strings
+  new Uint8Array(buffer, makeOffset, makeBytes.length).set(makeBytes);
+  new Uint8Array(buffer, modelOffset, modelBytes.length).set(modelBytes);
+
+  // Exif IFD
+  p = exifIfdOffset;
+  view.setUint16(p, exifCount, false);
+  p += 2;
+
+  // ColorSpace = sRGB (1)
+  writeIfdEntry(view, p, 40961, 3, 1, 1);
+  p += 12;
+
+  // PixelXDimension
+  writeIfdEntry(view, p, 40962, 4, 1, width);
+  p += 12;
+
+  // PixelYDimension
+  writeIfdEntry(view, p, 40963, 4, 1, height);
+  p += 12;
+
+  view.setUint32(p, 0, false);
+
+  const tiffBytes = new Uint8Array(buffer);
+
+  // Exif APP1 payload starts with "Exif\0\0".
+  const exif = new Uint8Array(6 + tiffBytes.length);
+  exif.set([0x45,0x78,0x69,0x66,0x00,0x00], 0);
+  exif.set(tiffBytes, 6);
+
+  return exif;
+}
+
+function writeIfdEntry(view, offset, tag, type, count, value) {
+  view.setUint16(offset, tag, false);
+  view.setUint16(offset + 2, type, false);
+  view.setUint32(offset + 4, count, false);
+
+  if (type === 3 && count === 1) {
+    view.setUint16(offset + 8, value, false);
+    view.setUint16(offset + 10, 0, false);
+  } else {
+    view.setUint32(offset + 8, value, false);
+  }
+}
+
+function asciiBytes(text) {
+  const result = new Uint8Array(text.length);
+
+  for (let i = 0; i < text.length; i++) {
+    result[i] = text.charCodeAt(i) & 0xFF;
+  }
+
+  return result;
+}
+
+function writeAscii(buffer, offset, text) {
+  const bytes = asciiBytes(text);
+  new Uint8Array(buffer, offset, bytes.length).set(bytes);
+}
+
+/* ---------------- JPEG APP1 INSERTION ---------------- */
+
+function insertExifIntoJpeg(jpegDataUrl, exifData) {
+  const binary = atob(jpegDataUrl.split(",")[1]);
+  const jpeg = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    jpeg[i] = binary.charCodeAt(i);
+  }
+
+  if (jpeg[0] !== 0xFF || jpeg[1] !== 0xD8) {
+    throw new Error("Generated data is not a valid JPEG.");
+  }
+
+  const app1Length = exifData.length + 2;
+
+  if (app1Length > 0xFFFF) {
+    throw new Error("EXIF block is too large.");
+  }
+
+  const output = new Uint8Array(2 + 2 + 2 + exifData.length + (jpeg.length - 2));
+
+  let p = 0;
+
+  // JPEG SOI
+  output[p++] = 0xFF;
+  output[p++] = 0xD8;
+
+  // APP1
+  output[p++] = 0xFF;
+  output[p++] = 0xE1;
+
+  // APP1 segment length includes these two length bytes.
+  output[p++] = (app1Length >> 8) & 0xFF;
+  output[p++] = app1Length & 0xFF;
+
+  output.set(exifData, p);
+  p += exifData.length;
+
+  // Rest of JPEG after SOI.
+  output.set(jpeg.subarray(2), p);
+
+  let binaryOutput = "";
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < output.length; i += chunkSize) {
+    binaryOutput += String.fromCharCode.apply(
+      null,
+      output.subarray(i, Math.min(i + chunkSize, output.length))
+    );
+  }
+
+  return "data:image/jpeg;base64," + btoa(binaryOutput);
+}
+
+/* ---------------- CLIPBOARD ---------------- */
+
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  const success = document.execCommand("copy");
+  textarea.remove();
+
+  if (!success) {
+    throw new Error("Clipboard access was denied.");
+  }
+}
+</script>
+</body>
+</html>
