@@ -99,9 +99,9 @@
     <p class="subtitle">Convert and prepare JPEG images directly in your browser.</p>
 
     <label class="upload">
-      <input id="fileInput" type="file" accept="image/jpeg,.jpg,.jpeg">
-      <strong>Select a JPG or JPEG image</strong>
-      <div class="filename" id="filename">No image selected</div>
+      <input id="fileInput" type="file" accept="image/jpeg,image/jpg,image/heic,image/heif,.jpg,.jpeg,.heic,.heif">
+      <strong>Select a photo</strong>
+      <div class="filename" id="filename">JPG, JPEG, HEIC or HEIF</div>
     </label>
 
     <div class="preview" id="preview">
@@ -117,6 +117,10 @@
       Processing happens locally in your browser. The output is normalized for
       orientation, center-cropped proportionally to 3:4, resized to exactly
       <strong>3024 × 4032</strong>, and given a minimal JPEG EXIF block.
+      <br><br>
+      <strong>iPhone:</strong> HEIC/HEIF support depends on the browser. Safari on
+      supported Apple devices can usually decode it. If it cannot, export the
+      photo as JPEG or use <strong>Most Compatible</strong> camera format.
     </div>
   </main>
 
@@ -136,43 +140,57 @@ const convertBtn = document.getElementById("convertBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 const statusEl = document.getElementById("status");
 
-let currentImageDataUrl = null;
+let currentFile = null;
+let currentObjectUrl = null;
+let convertedBlob = null;
+let convertedObjectUrl = null;
 let convertedDataUrl = null;
 
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files && fileInput.files[0];
   if (!file) return;
 
-  if (!file.type || file.type !== "image/jpeg") {
-    setStatus("Please select a JPG or JPEG image.", true);
-    convertBtn.disabled = true;
-    return;
-  }
+  resetConverted();
+  currentFile = file;
+  filename.textContent = `${file.name} • ${formatBytes(file.size)}`;
 
   try {
-    currentImageDataUrl = await readFileAsDataURL(file);
-    filename.textContent = file.name;
-    previewImage.src = currentImageDataUrl;
+    revokeUrl(currentObjectUrl);
+    currentObjectUrl = URL.createObjectURL(file);
+
+    // Verify that the browser can actually decode the selected photo.
+    const image = await loadImageFromUrl(currentObjectUrl);
+
+    previewImage.src = currentObjectUrl;
     preview.style.display = "block";
     convertBtn.disabled = false;
-    downloadBtn.style.display = "none";
-    convertedDataUrl = null;
-    setStatus("");
+
+    setStatus(`${isHeicLike(file) ? "HEIC/HEIF" : "JPEG"} loaded: ${image.naturalWidth} × ${image.naturalHeight}`);
   } catch (err) {
-    setStatus("Could not read the image.", true);
+    convertBtn.disabled = true;
+    preview.style.display = "none";
+
+    if (isHeicLike(file)) {
+      setStatus(
+        "This browser cannot decode this HEIC/HEIF photo. Export it as JPEG or use Most Compatible format on iPhone.",
+        true
+      );
+    } else {
+      setStatus("Could not read this image. Please choose a valid JPG or JPEG.", true);
+    }
   }
 });
 
 convertBtn.addEventListener("click", async () => {
-  if (!currentImageDataUrl) return;
+  if (!currentFile || !currentObjectUrl) return;
 
   convertBtn.disabled = true;
   downloadBtn.style.display = "none";
   setStatus("Processing image...");
 
   try {
-    const orientation = getExifOrientation(currentImageDataUrl);
-    const image = await loadImage(currentImageDataUrl);
+    const orientation = await getExifOrientationFromFile(currentFile);
+    const image = await loadImageFromUrl(currentObjectUrl);
 
     const normalizedCanvas = normalizeOrientation(image, orientation);
     const finalCanvas = resizeToTarget(normalizedCanvas);
@@ -184,15 +202,29 @@ convertBtn.addEventListener("click", async () => {
     const exifData = createExifData(TARGET_WIDTH, TARGET_HEIGHT);
     convertedDataUrl = insertExifIntoJpeg(cleanJpeg, exifData);
 
-    previewImage.src = convertedDataUrl;
+    // IMPORTANT: use a Blob URL for downloading. Safari is much more reliable
+    // with Blob URLs than very large data: URLs.
+    convertedBlob = dataUrlToBlob(convertedDataUrl, "image/jpeg");
+    revokeUrl(convertedObjectUrl);
+    convertedObjectUrl = URL.createObjectURL(convertedBlob);
 
-    const base64 = convertedDataUrl.split(",")[1];
-    await copyText(base64);
-
+    previewImage.src = convertedObjectUrl;
+    preview.style.display = "block";
     downloadBtn.style.display = "block";
 
+    // Clipboard failure must never make an otherwise successful conversion fail.
+    let clipboardMessage = "";
+    try {
+      const base64 = convertedDataUrl.substring(convertedDataUrl.indexOf(",") + 1);
+      await copyText(base64);
+      clipboardMessage = " Base64 copied to your clipboard.";
+    } catch (clipboardError) {
+      console.warn("Clipboard unavailable:", clipboardError);
+      clipboardMessage = " Clipboard access was unavailable, but the JPEG is ready to download.";
+    }
+
     setStatus(
-      "Done. The converted JPEG Base64 has been copied to your clipboard.",
+      `Done — ${TARGET_WIDTH} × ${TARGET_HEIGHT}.${clipboardMessage}`,
       false,
       true
     );
@@ -205,56 +237,100 @@ convertBtn.addEventListener("click", async () => {
 });
 
 downloadBtn.addEventListener("click", () => {
-  if (!convertedDataUrl) return;
+  if (!convertedBlob) return;
 
-  const a = document.createElement("a");
-  a.href = convertedDataUrl;
-  a.download = "converted-image.jpg";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  if (!convertedObjectUrl) {
+    convertedObjectUrl = URL.createObjectURL(convertedBlob);
+  }
+
+  const link = document.createElement("a");
+  link.href = convertedObjectUrl;
+  link.download = "converted-image.jpg";
+  link.rel = "noopener";
+  link.style.display = "none";
+
+  document.body.appendChild(link);
+
+  try {
+    link.click();
+  } catch (err) {
+    console.error("Download failed:", err);
+    // Safari fallback: open the Blob URL so the user can save/share it.
+    window.open(convertedObjectUrl, "_blank", "noopener");
+  }
+
+  link.remove();
+
+  setStatus(
+    "Download started. If Safari opens the image instead, use Share → Save to Files.",
+    false,
+    true
+  );
 });
 
-function setStatus(message, error = false, success = false) {
-  statusEl.textContent = message;
-  statusEl.className = "status" + (error ? " error" : success ? " success" : "");
+window.addEventListener("beforeunload", () => {
+  revokeUrl(currentObjectUrl);
+  revokeUrl(convertedObjectUrl);
+});
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, index)).toFixed(index ? 1 : 0)} ${units[index]}`;
 }
 
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+function revokeUrl(url) {
+  if (url) {
+    try { URL.revokeObjectURL(url); } catch (_) {}
+  }
 }
 
-function loadImage(dataUrl) {
+function resetConverted() {
+  convertedBlob = null;
+  convertedDataUrl = null;
+  downloadBtn.style.display = "none";
+  revokeUrl(convertedObjectUrl);
+  convertedObjectUrl = null;
+}
+
+function isHeicLike(file) {
+  const name = (file.name || "").toLowerCase();
+  const type = (file.type || "").toLowerCase();
+  return type === "image/heic" || type === "image/heif" || name.endsWith(".heic") || name.endsWith(".heif");
+}
+
+function loadImageFromUrl(url) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Invalid or unreadable JPEG."));
-    img.src = dataUrl;
+    try { img.style.imageOrientation = "none"; } catch (_) {}
+    img.onload = () => {
+      if (!img.naturalWidth || !img.naturalHeight) {
+        reject(new Error("Image has no usable dimensions."));
+        return;
+      }
+      resolve(img);
+    };
+    img.onerror = () => reject(new Error("Browser could not decode this image."));
+    img.src = url;
   });
 }
 
 /* ---------------- EXIF ORIENTATION READER ---------------- */
 
-function getExifOrientation(dataUrl) {
+async function getExifOrientationFromFile(file) {
+  // EXIF is normally near the beginning of a JPEG. Reading only the first
+  // 1 MB avoids creating another full-size copy of a large iPhone photo.
+  const maxScan = Math.min(file.size, 1024 * 1024);
+  const buffer = await file.slice(0, maxScan).arrayBuffer();
+  return readExifOrientationFromBytes(new Uint8Array(buffer));
+}
+
+function readExifOrientationFromBytes(bytes) {
   try {
-    const binary = atob(dataUrl.split(",")[1]);
-    const bytes = new Uint8Array(binary.length);
-
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-
-    if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) {
-      return 1;
-    }
+    if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return 1;
 
     let offset = 2;
-
     while (offset + 4 <= bytes.length) {
       if (bytes[offset] !== 0xFF) {
         offset++;
@@ -262,26 +338,23 @@ function getExifOrientation(dataUrl) {
       }
 
       const marker = bytes[offset + 1];
-
       if (marker === 0xD8 || marker === 0xD9) {
         offset += 2;
         continue;
       }
 
-      if (offset + 4 > bytes.length) break;
+      // Start of Scan: metadata segments after this are not relevant.
+      if (marker === 0xDA) break;
 
       const segmentLength = (bytes[offset + 2] << 8) | bytes[offset + 3];
+      if (segmentLength < 2) break;
 
       if (marker === 0xE1 && segmentLength >= 8) {
         const exifStart = offset + 4;
-
         if (
-          bytes[exifStart] === 0x45 &&
-          bytes[exifStart + 1] === 0x78 &&
-          bytes[exifStart + 2] === 0x69 &&
-          bytes[exifStart + 3] === 0x66 &&
-          bytes[exifStart + 4] === 0x00 &&
-          bytes[exifStart + 5] === 0x00
+          bytes[exifStart] === 0x45 && bytes[exifStart + 1] === 0x78 &&
+          bytes[exifStart + 2] === 0x69 && bytes[exifStart + 3] === 0x66 &&
+          bytes[exifStart + 4] === 0x00 && bytes[exifStart + 5] === 0x00
         ) {
           return readTiffOrientation(bytes, exifStart + 6);
         }
@@ -292,8 +365,12 @@ function getExifOrientation(dataUrl) {
   } catch (e) {
     console.warn("Could not read EXIF orientation:", e);
   }
-
   return 1;
+}
+
+function setStatus(message, error = false, success = false) {
+  statusEl.textContent = message;
+  statusEl.className = "status" + (error ? " error" : success ? " success" : "");
 }
 
 function readTiffOrientation(bytes, tiffOffset) {
@@ -595,56 +672,62 @@ function writeAscii(buffer, offset, text) {
 /* ---------------- JPEG APP1 INSERTION ---------------- */
 
 function insertExifIntoJpeg(jpegDataUrl, exifData) {
-  const binary = atob(jpegDataUrl.split(",")[1]);
+  const base64 = jpegDataUrl.substring(jpegDataUrl.indexOf(",") + 1);
+  const binary = atob(base64);
   const jpeg = new Uint8Array(binary.length);
 
-  for (let i = 0; i < binary.length; i++) {
-    jpeg[i] = binary.charCodeAt(i);
-  }
+  for (let i = 0; i < binary.length; i++) jpeg[i] = binary.charCodeAt(i);
 
-  if (jpeg[0] !== 0xFF || jpeg[1] !== 0xD8) {
-    throw new Error("Generated data is not a valid JPEG.");
+  if (jpeg.length < 2 || jpeg[0] !== 0xFF || jpeg[1] !== 0xD8) {
+    throw new Error("Generated image is not a valid JPEG.");
   }
 
   const app1Length = exifData.length + 2;
-
-  if (app1Length > 0xFFFF) {
-    throw new Error("EXIF block is too large.");
-  }
+  if (app1Length > 0xFFFF) throw new Error("EXIF block is too large.");
 
   const output = new Uint8Array(2 + 2 + 2 + exifData.length + (jpeg.length - 2));
-
   let p = 0;
 
   // JPEG SOI
   output[p++] = 0xFF;
   output[p++] = 0xD8;
 
-  // APP1
+  // APP1 marker
   output[p++] = 0xFF;
   output[p++] = 0xE1;
 
-  // APP1 segment length includes these two length bytes.
+  // APP1 segment length includes these two bytes.
   output[p++] = (app1Length >> 8) & 0xFF;
   output[p++] = app1Length & 0xFF;
 
   output.set(exifData, p);
   p += exifData.length;
 
-  // Rest of JPEG after SOI.
+  // Everything after the original JPEG SOI.
   output.set(jpeg.subarray(2), p);
 
-  let binaryOutput = "";
-  const chunkSize = 0x8000;
+  return bytesToDataUrl(output, "image/jpeg");
+}
 
-  for (let i = 0; i < output.length; i += chunkSize) {
-    binaryOutput += String.fromCharCode.apply(
-      null,
-      output.subarray(i, Math.min(i + chunkSize, output.length))
-    );
+function dataUrlToBlob(dataUrl, mimeType) {
+  const base64 = dataUrl.substring(dataUrl.indexOf(",") + 1);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+}
+
+function bytesToDataUrl(bytes, mimeType) {
+  const chunkSize = 0x8000;
+  let binary = "";
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode.apply(null, chunk);
   }
 
-  return "data:image/jpeg;base64," + btoa(binaryOutput);
+  return `data:${mimeType};base64,${btoa(binary)}`;
 }
 
 /* ---------------- CLIPBOARD ---------------- */
