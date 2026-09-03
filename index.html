@@ -2,125 +2,214 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Meta Image Tool</title>
+
   <style>
     :root {
       color-scheme: dark;
       --bg: #0b0d10;
       --card: #15191f;
+      --card2: #101318;
       --border: #2a3038;
+      --border2: #48515d;
       --text: #f3f5f7;
       --muted: #9ca6b2;
-      --accent: #ffffff;
-      --accentText: #0b0d10;
+      --success: #b9f6c9;
+      --error: #ffb4b4;
     }
+
     * { box-sizing: border-box; }
-    body {
+
+    html, body {
       margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+    }
+
+    body {
       min-height: 100vh;
       display: grid;
       place-items: center;
       padding: 24px;
-      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       color: var(--text);
     }
+
     .card {
-      width: min(680px, 100%);
+      width: min(700px, 100%);
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 28px;
       box-shadow: 0 18px 60px rgba(0,0,0,.35);
     }
-    h1 { margin: 0 0 8px; font-size: 28px; }
-    .subtitle { margin: 0 0 24px; color: var(--muted); line-height: 1.5; }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin: 0 0 24px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
     .upload {
       display: block;
-      padding: 22px;
-      border: 1px dashed #48515d;
+      padding: 24px;
+      border: 1px dashed var(--border2);
       border-radius: 14px;
       text-align: center;
       cursor: pointer;
-      transition: .2s;
+      transition: background .2s, border-color .2s;
+      -webkit-tap-highlight-color: transparent;
     }
-    .upload:hover { border-color: #87919e; background: #191e25; }
-    .upload input { display: none; }
-    .filename { margin-top: 10px; color: var(--muted); font-size: 14px; word-break: break-word; }
+
+    .upload:hover {
+      border-color: #87919e;
+      background: #191e25;
+    }
+
+    .upload input {
+      display: none;
+    }
+
+    .filename {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      word-break: break-word;
+    }
+
     .preview {
       display: none;
       margin-top: 20px;
       text-align: center;
     }
+
     .preview img {
+      display: block;
+      width: auto;
       max-width: 100%;
-      max-height: 420px;
+      max-height: 430px;
+      margin: 0 auto;
       border-radius: 12px;
       border: 1px solid var(--border);
+      object-fit: contain;
     }
+
     button {
+      appearance: none;
+      -webkit-appearance: none;
       width: 100%;
       margin-top: 18px;
-      padding: 14px 18px;
+      padding: 15px 18px;
       border: 0;
       border-radius: 12px;
-      background: var(--accent);
-      color: var(--accentText);
+      background: #ffffff;
+      color: #0b0d10;
       font-size: 16px;
       font-weight: 700;
       cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    #downloadBtn { display: none; background: #242a32; color: var(--text); }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    #downloadBtn {
+      display: none;
+      background: #242a32;
+      color: var(--text);
+    }
+
     .status {
       min-height: 22px;
       margin-top: 16px;
       color: var(--muted);
       text-align: center;
       font-size: 14px;
+      line-height: 1.5;
     }
+
+    .success { color: var(--success); }
+    .error { color: var(--error); }
+
     .info {
       margin-top: 20px;
       padding: 14px;
       border-radius: 12px;
-      background: #101318;
+      background: var(--card2);
       color: var(--muted);
       font-size: 13px;
       line-height: 1.55;
     }
-    .success { color: #b9f6c9; }
-    .error { color: #ffb4b4; }
+
+    .download-help {
+      display: none;
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--card2);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      text-align: center;
+    }
   </style>
 </head>
+
 <body>
   <main class="card">
     <h1>Meta Image Tool</h1>
-    <p class="subtitle">Convert and prepare JPEG images directly in your browser.</p>
+    <p class="subtitle">
+      Convert and prepare JPEG images directly in your browser.
+    </p>
 
     <label class="upload">
-      <input id="fileInput" type="file" accept="image/jpeg,image/jpg,image/heic,image/heif,.jpg,.jpeg,.heic,.heif">
-      <strong>Select a photo</strong>
-      <div class="filename" id="filename">JPG, JPEG, HEIC or HEIF</div>
+      <input
+        id="fileInput"
+        type="file"
+        accept="image/jpeg,image/heic,image/heif,.jpg,.jpeg,.heic,.heif"
+      >
+      <strong>Select an image</strong>
+      <div class="filename" id="filename">
+        JPG, JPEG, HEIC or HEIF
+      </div>
     </label>
 
     <div class="preview" id="preview">
       <img id="previewImage" alt="Image preview">
     </div>
 
-    <button id="convertBtn" disabled>Convert Image</button>
-    <button id="downloadBtn">Download Converted JPEG</button>
+    <button id="convertBtn" type="button" disabled>
+      Convert Image
+    </button>
+
+    <button id="downloadBtn" type="button">
+      Download Converted JPEG
+    </button>
+
+    <div class="download-help" id="downloadHelp">
+      If Safari opens the image instead of downloading it, use
+      <strong>File → Save As…</strong> and save it as a JPEG.
+    </div>
 
     <div class="status" id="status"></div>
 
     <div class="info">
-      Processing happens locally in your browser. The output is normalized for
-      orientation, center-cropped proportionally to 3:4, resized to exactly
-      <strong>3024 × 4032</strong>, and given a minimal JPEG EXIF block.
-      <br><br>
-      <strong>iPhone:</strong> HEIC/HEIF support depends on the browser. Safari on
-      supported Apple devices can usually decode it. If it cannot, export the
-      photo as JPEG or use <strong>Most Compatible</strong> camera format.
+      Processing happens locally in your browser.
+      The output is normalized for orientation, center-cropped proportionally
+      to 3:4, resized to exactly <strong>3024 × 4032</strong>, and given a
+      minimal JPEG EXIF block.
     </div>
   </main>
 
@@ -133,119 +222,229 @@ const TARGET_MAKE = "Meta AI";
 const TARGET_MODEL = "Ray-Ban Meta Smart Glasses 2";
 
 const fileInput = document.getElementById("fileInput");
-const filename = document.getElementById("filename");
+const filenameEl = document.getElementById("filename");
 const preview = document.getElementById("preview");
 const previewImage = document.getElementById("previewImage");
 const convertBtn = document.getElementById("convertBtn");
 const downloadBtn = document.getElementById("downloadBtn");
+const downloadHelp = document.getElementById("downloadHelp");
 const statusEl = document.getElementById("status");
 
 let currentFile = null;
 let currentObjectUrl = null;
 let convertedBlob = null;
 let convertedObjectUrl = null;
-let convertedDataUrl = null;
 
-fileInput.addEventListener("change", async () => {
+/* =========================================================
+   FILE SELECTION
+   ========================================================= */
+
+fileInput.addEventListener("change", async function () {
   const file = fileInput.files && fileInput.files[0];
+
   if (!file) return;
 
-  resetConverted();
   currentFile = file;
-  filename.textContent = `${file.name} • ${formatBytes(file.size)}`;
+  convertedBlob = null;
+
+  if (convertedObjectUrl) {
+    URL.revokeObjectURL(convertedObjectUrl);
+    convertedObjectUrl = null;
+  }
+
+  downloadBtn.style.display = "none";
+  downloadHelp.style.display = "none";
+
+  filenameEl.textContent = file.name;
 
   try {
-    revokeUrl(currentObjectUrl);
+    if (currentObjectUrl) {
+      URL.revokeObjectURL(currentObjectUrl);
+    }
+
     currentObjectUrl = URL.createObjectURL(file);
 
-    // Verify that the browser can actually decode the selected photo.
-    const image = await loadImageFromUrl(currentObjectUrl);
+    /*
+      Creating an Image from an object URL is important for Safari.
+      It avoids putting the original iPhone image into a huge base64 string.
+    */
+    await loadImage(currentObjectUrl);
 
     previewImage.src = currentObjectUrl;
     preview.style.display = "block";
     convertBtn.disabled = false;
 
-    setStatus(`${isHeicLike(file) ? "HEIC/HEIF" : "JPEG"} loaded: ${image.naturalWidth} × ${image.naturalHeight}`);
-  } catch (err) {
+    setStatus("Image ready.");
+  } catch (error) {
     convertBtn.disabled = true;
     preview.style.display = "none";
 
-    if (isHeicLike(file)) {
-      setStatus(
-        "This browser cannot decode this HEIC/HEIF photo. Export it as JPEG or use Most Compatible format on iPhone.",
-        true
-      );
-    } else {
-      setStatus("Could not read this image. Please choose a valid JPG or JPEG.", true);
-    }
+    setStatus(
+      "Safari could not decode this image. If it is HEIC/HEIF, convert it to JPEG first.",
+      true
+    );
+
+    console.error(error);
   }
 });
 
-convertBtn.addEventListener("click", async () => {
-  if (!currentFile || !currentObjectUrl) return;
+
+/* =========================================================
+   CONVERT
+   ========================================================= */
+
+convertBtn.addEventListener("click", async function () {
+  if (!currentFile) return;
 
   convertBtn.disabled = true;
   downloadBtn.style.display = "none";
+  downloadHelp.style.display = "none";
   setStatus("Processing image...");
 
   try {
-    const orientation = await getExifOrientationFromFile(currentFile);
-    const image = await loadImageFromUrl(currentObjectUrl);
+    /*
+      Read orientation only for JPEG.
+      HEIC/HEIF is normally decoded by Safari with its orientation
+      already represented in the decoded image.
+    */
+    let orientation = 1;
 
+    if (isJpegFile(currentFile)) {
+      orientation = await getExifOrientationFromFile(currentFile);
+    }
+
+    const image = await loadImage(currentObjectUrl);
+
+    /*
+      Step 1:
+      Physically normalize the orientation so the output EXIF
+      can safely use Orientation = 1.
+    */
     const normalizedCanvas = normalizeOrientation(image, orientation);
+
+    /*
+      Step 2:
+      Crop proportionally to 3:4 and resize to exactly 3024x4032.
+    */
     const finalCanvas = resizeToTarget(normalizedCanvas);
 
-    // Canvas re-encoding creates a clean JPEG without the original EXIF.
-    const cleanJpeg = finalCanvas.toDataURL("image/jpeg", 0.95);
+    /*
+      Step 3:
+      Safari-friendly JPEG encoding.
+      We use canvas.toBlob() rather than a huge data URL.
+    */
+    const cleanJpegBlob = await canvasToJpegBlob(finalCanvas, 0.95);
 
-    // Add only the intended minimal EXIF metadata.
-    const exifData = createExifData(TARGET_WIDTH, TARGET_HEIGHT);
-    convertedDataUrl = insertExifIntoJpeg(cleanJpeg, exifData);
+    /*
+      Step 4:
+      Add our minimal EXIF directly to the JPEG bytes.
+    */
+    const exifData = createExifData(
+      TARGET_WIDTH,
+      TARGET_HEIGHT
+    );
 
-    // IMPORTANT: use a Blob URL for downloading. Safari is much more reliable
-    // with Blob URLs than very large data: URLs.
-    convertedBlob = dataUrlToBlob(convertedDataUrl, "image/jpeg");
-    revokeUrl(convertedObjectUrl);
+    convertedBlob = await insertExifIntoJpegBlob(
+      cleanJpegBlob,
+      exifData
+    );
+
+    /*
+      Step 5:
+      Create an object URL for preview and download.
+    */
+    if (convertedObjectUrl) {
+      URL.revokeObjectURL(convertedObjectUrl);
+    }
+
     convertedObjectUrl = URL.createObjectURL(convertedBlob);
 
     previewImage.src = convertedObjectUrl;
-    preview.style.display = "block";
-    downloadBtn.style.display = "block";
 
-    // Clipboard failure must never make an otherwise successful conversion fail.
+    /*
+      Copy Base64 separately.
+      Failure here MUST NOT make conversion/download fail.
+    */
     let clipboardMessage = "";
+
     try {
-      const base64 = convertedDataUrl.substring(convertedDataUrl.indexOf(",") + 1);
+      const base64 = await blobToBase64(convertedBlob);
       await copyText(base64);
-      clipboardMessage = " Base64 copied to your clipboard.";
+      clipboardMessage = " Base64 copied to clipboard.";
     } catch (clipboardError) {
       console.warn("Clipboard unavailable:", clipboardError);
-      clipboardMessage = " Clipboard access was unavailable, but the JPEG is ready to download.";
+      clipboardMessage = " Clipboard access was unavailable.";
     }
 
+    /*
+      Most important Safari fix:
+      Keep the actual Blob available for the download button.
+    */
+    downloadBtn.style.display = "block";
+
     setStatus(
-      `Done — ${TARGET_WIDTH} × ${TARGET_HEIGHT}.${clipboardMessage}`,
+      "Conversion complete." + clipboardMessage,
       false,
       true
     );
-  } catch (err) {
-    console.error(err);
-    setStatus("Conversion failed: " + (err.message || err), true);
+
+  } catch (error) {
+    console.error(error);
+
+    convertedBlob = null;
+
+    setStatus(
+      "Conversion failed: " + (error.message || error),
+      true
+    );
   } finally {
     convertBtn.disabled = false;
   }
 });
 
-downloadBtn.addEventListener("click", () => {
-  if (!convertedBlob) return;
 
-  if (!convertedObjectUrl) {
-    convertedObjectUrl = URL.createObjectURL(convertedBlob);
+/* =========================================================
+   SAFARI-SAFE DOWNLOAD
+   ========================================================= */
+
+downloadBtn.addEventListener("click", function (event) {
+  event.preventDefault();
+
+  if (!convertedBlob) {
+    setStatus("There is no converted image to download.", true);
+    return;
   }
 
+  /*
+    IMPORTANT:
+    This function runs directly from the user's button click.
+    Safari is much less likely to block a download when the
+    Blob URL is created and opened from the click event.
+  */
+  downloadBlobSafariSafe(
+    convertedBlob,
+    "converted-image.jpg"
+  );
+});
+
+
+function downloadBlobSafariSafe(blob, filename) {
+  if (!blob || blob.size === 0) {
+    setStatus("The converted file is empty.", true);
+    return;
+  }
+
+  /*
+    Create a fresh object URL for THIS click.
+    Do not revoke it immediately because Safari may still
+    be processing the download navigation.
+  */
+  const url = URL.createObjectURL(blob);
+
   const link = document.createElement("a");
-  link.href = convertedObjectUrl;
-  link.download = "converted-image.jpg";
+
+  link.href = url;
+  link.download = filename;
   link.rel = "noopener";
   link.style.display = "none";
 
@@ -253,84 +452,118 @@ downloadBtn.addEventListener("click", () => {
 
   try {
     link.click();
-  } catch (err) {
-    console.error("Download failed:", err);
-    // Safari fallback: open the Blob URL so the user can save/share it.
-    window.open(convertedObjectUrl, "_blank", "noopener");
+
+    /*
+      Keep the URL alive long enough for Safari.
+    */
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 15000);
+
+    /*
+      Safari can sometimes display the file in a new tab instead
+      of using the download attribute. Show a small instruction.
+    */
+    downloadHelp.style.display = "block";
+
+  } catch (error) {
+    link.remove();
+
+    /*
+      Fallback: navigate to the Blob URL in a new tab.
+      The user can then save the image using Safari's Save As.
+    */
+    try {
+      window.open(url, "_blank", "noopener,noreferrer");
+
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 60000);
+
+      downloadHelp.style.display = "block";
+    } catch (fallbackError) {
+      URL.revokeObjectURL(url);
+      setStatus(
+        "Safari blocked the download. Please use File → Save As…",
+        true
+      );
+    }
   }
-
-  link.remove();
-
-  setStatus(
-    "Download started. If Safari opens the image instead, use Share → Save to Files.",
-    false,
-    true
-  );
-});
-
-window.addEventListener("beforeunload", () => {
-  revokeUrl(currentObjectUrl);
-  revokeUrl(convertedObjectUrl);
-});
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / Math.pow(1024, index)).toFixed(index ? 1 : 0)} ${units[index]}`;
 }
 
-function revokeUrl(url) {
-  if (url) {
-    try { URL.revokeObjectURL(url); } catch (_) {}
-  }
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+function setStatus(message, error, success) {
+  statusEl.textContent = message || "";
+
+  statusEl.className =
+    "status" +
+    (error ? " error" : "") +
+    (success ? " success" : "");
 }
 
-function resetConverted() {
-  convertedBlob = null;
-  convertedDataUrl = null;
-  downloadBtn.style.display = "none";
-  revokeUrl(convertedObjectUrl);
-  convertedObjectUrl = null;
-}
 
-function isHeicLike(file) {
+function isJpegFile(file) {
   const name = (file.name || "").toLowerCase();
-  const type = (file.type || "").toLowerCase();
-  return type === "image/heic" || type === "image/heif" || name.endsWith(".heic") || name.endsWith(".heif");
+
+  return (
+    file.type === "image/jpeg" ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg")
+  );
 }
 
-function loadImageFromUrl(url) {
-  return new Promise((resolve, reject) => {
+
+function loadImage(url) {
+  return new Promise(function (resolve, reject) {
     const img = new Image();
-    try { img.style.imageOrientation = "none"; } catch (_) {}
-    img.onload = () => {
-      if (!img.naturalWidth || !img.naturalHeight) {
-        reject(new Error("Image has no usable dimensions."));
-        return;
-      }
+
+    img.onload = function () {
       resolve(img);
     };
-    img.onerror = () => reject(new Error("Browser could not decode this image."));
+
+    img.onerror = function () {
+      reject(new Error("The browser could not decode this image."));
+    };
+
     img.src = url;
   });
 }
 
-/* ---------------- EXIF ORIENTATION READER ---------------- */
+
+/* =========================================================
+   EXIF ORIENTATION READER
+   ========================================================= */
 
 async function getExifOrientationFromFile(file) {
-  // EXIF is normally near the beginning of a JPEG. Reading only the first
-  // 1 MB avoids creating another full-size copy of a large iPhone photo.
-  const maxScan = Math.min(file.size, 1024 * 1024);
-  const buffer = await file.slice(0, maxScan).arrayBuffer();
-  return readExifOrientationFromBytes(new Uint8Array(buffer));
+  /*
+    We only need the JPEG headers/APP1 region.
+    Read the first 256 KB instead of the complete image.
+  */
+  const maxBytes = Math.min(file.size, 262144);
+  const buffer = await file.slice(0, maxBytes).arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  return readExifOrientation(bytes);
 }
 
-function readExifOrientationFromBytes(bytes) {
+
+function readExifOrientation(bytes) {
   try {
-    if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return 1;
+    if (
+      bytes.length < 4 ||
+      bytes[0] !== 0xFF ||
+      bytes[1] !== 0xD8
+    ) {
+      return 1;
+    }
 
     let offset = 2;
+
     while (offset + 4 <= bytes.length) {
       if (bytes[offset] !== 0xFF) {
         offset++;
@@ -338,43 +571,68 @@ function readExifOrientationFromBytes(bytes) {
       }
 
       const marker = bytes[offset + 1];
+
       if (marker === 0xD8 || marker === 0xD9) {
         offset += 2;
         continue;
       }
 
-      // Start of Scan: metadata segments after this are not relevant.
-      if (marker === 0xDA) break;
+      const segmentLength =
+        (bytes[offset + 2] << 8) |
+        bytes[offset + 3];
 
-      const segmentLength = (bytes[offset + 2] << 8) | bytes[offset + 3];
-      if (segmentLength < 2) break;
+      if (segmentLength < 2) {
+        return 1;
+      }
 
-      if (marker === 0xE1 && segmentLength >= 8) {
+      /*
+        APP1 = 0xE1
+      */
+      if (
+        marker === 0xE1 &&
+        segmentLength >= 8 &&
+        offset + 4 + segmentLength <= bytes.length
+      ) {
         const exifStart = offset + 4;
+
         if (
-          bytes[exifStart] === 0x45 && bytes[exifStart + 1] === 0x78 &&
-          bytes[exifStart + 2] === 0x69 && bytes[exifStart + 3] === 0x66 &&
-          bytes[exifStart + 4] === 0x00 && bytes[exifStart + 5] === 0x00
+          bytes[exifStart] === 0x45 &&
+          bytes[exifStart + 1] === 0x78 &&
+          bytes[exifStart + 2] === 0x69 &&
+          bytes[exifStart + 3] === 0x66 &&
+          bytes[exifStart + 4] === 0x00 &&
+          bytes[exifStart + 5] === 0x00
         ) {
-          return readTiffOrientation(bytes, exifStart + 6);
+          return readTiffOrientation(
+            bytes,
+            exifStart + 6
+          );
         }
+      }
+
+      /*
+        SOS begins compressed image data.
+        EXIF after this point is irrelevant.
+      */
+      if (marker === 0xDA) {
+        break;
       }
 
       offset += 2 + segmentLength;
     }
-  } catch (e) {
-    console.warn("Could not read EXIF orientation:", e);
+
+  } catch (error) {
+    console.warn("Could not read EXIF orientation:", error);
   }
+
   return 1;
 }
 
-function setStatus(message, error = false, success = false) {
-  statusEl.textContent = message;
-  statusEl.className = "status" + (error ? " error" : success ? " success" : "");
-}
 
 function readTiffOrientation(bytes, tiffOffset) {
-  if (tiffOffset + 8 > bytes.length) return 1;
+  if (tiffOffset + 8 > bytes.length) {
+    return 1;
+  }
 
   const byteOrder =
     String.fromCharCode(bytes[tiffOffset]) +
@@ -382,43 +640,63 @@ function readTiffOrientation(bytes, tiffOffset) {
 
   const littleEndian = byteOrder === "II";
 
-  const read16 = (pos) => {
+  if (byteOrder !== "II" && byteOrder !== "MM") {
+    return 1;
+  }
+
+  function read16(pos) {
     if (pos + 2 > bytes.length) return 0;
+
     return littleEndian
       ? bytes[pos] | (bytes[pos + 1] << 8)
       : (bytes[pos] << 8) | bytes[pos + 1];
-  };
+  }
 
-  const read32 = (pos) => {
+  function read32(pos) {
     if (pos + 4 > bytes.length) return 0;
-    return littleEndian
-      ? (
-          bytes[pos] |
-          (bytes[pos + 1] << 8) |
-          (bytes[pos + 2] << 16) |
-          (bytes[pos + 3] << 24)
-        ) >>> 0
-      : (
-          (bytes[pos] << 24) |
-          (bytes[pos + 1] << 16) |
-          (bytes[pos + 2] << 8) |
-          bytes[pos + 3]
-        ) >>> 0;
-  };
 
-  if (read16(tiffOffset + 2) !== 42) return 1;
+    if (littleEndian) {
+      return (
+        bytes[pos] |
+        (bytes[pos + 1] << 8) |
+        (bytes[pos + 2] << 16) |
+        (bytes[pos + 3] << 24)
+      ) >>> 0;
+    }
+
+    return (
+      (bytes[pos] << 24) |
+      (bytes[pos + 1] << 16) |
+      (bytes[pos + 2] << 8) |
+      bytes[pos + 3]
+    ) >>> 0;
+  }
+
+  if (read16(tiffOffset + 2) !== 42) {
+    return 1;
+  }
 
   const ifdOffset = read32(tiffOffset + 4);
   const ifdStart = tiffOffset + ifdOffset;
 
-  if (ifdStart + 2 > bytes.length) return 1;
+  if (ifdStart + 2 > bytes.length) {
+    return 1;
+  }
 
   const entryCount = read16(ifdStart);
 
-  for (let i = 0; i < entryCount; i++) {
+  /*
+    Limit the number of entries to prevent malformed files
+    from causing excessive work.
+  */
+  const safeCount = Math.min(entryCount, 1000);
+
+  for (let i = 0; i < safeCount; i++) {
     const entry = ifdStart + 2 + i * 12;
 
-    if (entry + 12 > bytes.length) break;
+    if (entry + 12 > bytes.length) {
+      break;
+    }
 
     const tag = read16(entry);
 
@@ -428,7 +706,10 @@ function readTiffOrientation(bytes, tiffOffset) {
 
       if (type === 3 && count >= 1) {
         const value = read16(entry + 8);
-        return value >= 1 && value <= 8 ? value : 1;
+
+        if (value >= 1 && value <= 8) {
+          return value;
+        }
       }
     }
   }
@@ -436,7 +717,10 @@ function readTiffOrientation(bytes, tiffOffset) {
   return 1;
 }
 
-/* ---------------- ORIENTATION NORMALIZATION ---------------- */
+
+/* =========================================================
+   ORIENTATION NORMALIZATION
+   ========================================================= */
 
 function normalizeOrientation(image, orientation) {
   const swapDimensions =
@@ -446,10 +730,18 @@ function normalizeOrientation(image, orientation) {
     orientation === 8;
 
   const canvas = document.createElement("canvas");
-  canvas.width = swapDimensions ? image.height : image.width;
-  canvas.height = swapDimensions ? image.width : image.height;
 
-  const ctx = canvas.getContext("2d");
+  canvas.width = swapDimensions
+    ? image.height
+    : image.width;
+
+  canvas.height = swapDimensions
+    ? image.width
+    : image.height;
+
+  const ctx = canvas.getContext("2d", {
+    alpha: false
+  });
 
   switch (orientation) {
     case 2:
@@ -477,7 +769,14 @@ function normalizeOrientation(image, orientation) {
       break;
 
     case 7:
-      ctx.setTransform(0, -1, -1, 0, canvas.width, canvas.height);
+      ctx.setTransform(
+        0,
+        -1,
+        -1,
+        0,
+        canvas.width,
+        canvas.height
+      );
       break;
 
     case 8:
@@ -490,17 +789,24 @@ function normalizeOrientation(image, orientation) {
   }
 
   ctx.drawImage(image, 0, 0);
+
   return canvas;
 }
 
-/* ---------------- 3:4 CROP + RESIZE ---------------- */
+
+/* =========================================================
+   3:4 CROP + RESIZE
+   ========================================================= */
 
 function resizeToTarget(sourceCanvas) {
   const sourceWidth = sourceCanvas.width;
   const sourceHeight = sourceCanvas.height;
 
-  const targetRatio = TARGET_WIDTH / TARGET_HEIGHT;
-  const sourceRatio = sourceWidth / sourceHeight;
+  const targetRatio =
+    TARGET_WIDTH / TARGET_HEIGHT;
+
+  const sourceRatio =
+    sourceWidth / sourceHeight;
 
   let cropWidth = sourceWidth;
   let cropHeight = sourceHeight;
@@ -508,20 +814,31 @@ function resizeToTarget(sourceCanvas) {
   let cropY = 0;
 
   if (sourceRatio > targetRatio) {
-    // Too wide: crop left and right.
+    /*
+      Image is too wide.
+      Crop equally from left and right.
+    */
     cropWidth = sourceHeight * targetRatio;
     cropX = (sourceWidth - cropWidth) / 2;
+
   } else if (sourceRatio < targetRatio) {
-    // Too tall/narrow: crop top and bottom.
+    /*
+      Image is too tall.
+      Crop equally from top and bottom.
+    */
     cropHeight = sourceWidth / targetRatio;
     cropY = (sourceHeight - cropHeight) / 2;
   }
 
   const canvas = document.createElement("canvas");
+
   canvas.width = TARGET_WIDTH;
   canvas.height = TARGET_HEIGHT;
 
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", {
+    alpha: false
+  });
+
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
@@ -540,219 +857,545 @@ function resizeToTarget(sourceCanvas) {
   return canvas;
 }
 
-/* ---------------- MINIMAL EXIF WRITER ---------------- */
+
+/* =========================================================
+   CANVAS → JPEG BLOB
+   ========================================================= */
+
+function canvasToJpegBlob(canvas, quality) {
+  return new Promise(function (resolve, reject) {
+    canvas.toBlob(
+      function (blob) {
+        if (!blob) {
+          reject(new Error(
+            "Safari could not create the JPEG file."
+          ));
+          return;
+        }
+
+        resolve(blob);
+      },
+      "image/jpeg",
+      quality
+    );
+  });
+}
+
+
+/* =========================================================
+   MINIMAL EXIF WRITER
+   ========================================================= */
 
 function createExifData(width, height) {
-  const makeBytes = asciiBytes(TARGET_MAKE + "\0");
-  const modelBytes = asciiBytes(TARGET_MODEL + "\0");
+  const makeBytes =
+    asciiBytes(TARGET_MAKE + "\0");
 
-  // TIFF:
-  // Header 8 bytes
-  // 0th IFD: 7 entries + next-IFD pointer
-  // Make string
-  // Model string
-  // Exif IFD
-  // Exif values
+  const modelBytes =
+    asciiBytes(TARGET_MODEL + "\0");
+
+  /*
+    TIFF layout:
+      Header
+      0th IFD
+      Make string
+      Model string
+      Exif IFD
+    */
 
   const ifd0Count = 6;
-  const ifd0Size = 2 + ifd0Count * 12 + 4;
+  const ifd0Size =
+    2 + ifd0Count * 12 + 4;
+
   const ifd0Offset = 8;
 
-  const makeOffset = ifd0Offset + ifd0Size;
-  const modelOffset = makeOffset + makeBytes.length;
+  const makeOffset =
+    ifd0Offset + ifd0Size;
 
-  const exifIfdOffset = modelOffset + modelBytes.length;
+  const modelOffset =
+    makeOffset + makeBytes.length;
+
+  const exifIfdOffset =
+    modelOffset + modelBytes.length;
 
   const exifCount = 3;
-  const exifIfdSize = 2 + exifCount * 12 + 4;
 
-  const totalTiffSize = exifIfdOffset + exifIfdSize;
+  const exifIfdSize =
+    2 + exifCount * 12 + 4;
 
-  const buffer = new ArrayBuffer(totalTiffSize);
-  const view = new DataView(buffer);
+  const totalTiffSize =
+    exifIfdOffset + exifIfdSize;
 
-  // Big-endian TIFF.
+  const buffer =
+    new ArrayBuffer(totalTiffSize);
+
+  const view =
+    new DataView(buffer);
+
+  /*
+    Big-endian TIFF.
+    */
   writeAscii(buffer, 0, "MM");
-  view.setUint16(2, 42, false);
-  view.setUint32(4, ifd0Offset, false);
+
+  view.setUint16(
+    2,
+    42,
+    false
+  );
+
+  view.setUint32(
+    4,
+    ifd0Offset,
+    false
+  );
 
   let p = ifd0Offset;
 
-  view.setUint16(p, ifd0Count, false);
+  view.setUint16(
+    p,
+    ifd0Count,
+    false
+  );
+
   p += 2;
 
   // ImageWidth
-  writeIfdEntry(view, p, 256, 4, 1, width);
+  writeIfdEntry(
+    view,
+    p,
+    256,
+    4,
+    1,
+    width
+  );
   p += 12;
 
   // ImageLength
-  writeIfdEntry(view, p, 257, 4, 1, height);
+  writeIfdEntry(
+    view,
+    p,
+    257,
+    4,
+    1,
+    height
+  );
   p += 12;
 
   // Make
-  writeIfdEntry(view, p, 271, 2, makeBytes.length, makeOffset);
+  writeIfdEntry(
+    view,
+    p,
+    271,
+    2,
+    makeBytes.length,
+    makeOffset
+  );
   p += 12;
 
   // Model
-  writeIfdEntry(view, p, 272, 2, modelBytes.length, modelOffset);
+  writeIfdEntry(
+    view,
+    p,
+    272,
+    2,
+    modelBytes.length,
+    modelOffset
+  );
   p += 12;
 
   // Orientation = 1
-  writeIfdEntry(view, p, 274, 3, 1, 1);
+  writeIfdEntry(
+    view,
+    p,
+    274,
+    3,
+    1,
+    1
+  );
   p += 12;
 
   // ExifIFDPointer
-  writeIfdEntry(view, p, 34665, 4, 1, exifIfdOffset);
+  writeIfdEntry(
+    view,
+    p,
+    34665,
+    4,
+    1,
+    exifIfdOffset
+  );
   p += 12;
 
-  // Next IFD = 0
-  view.setUint32(p, 0, false);
+  // Next IFD
+  view.setUint32(
+    p,
+    0,
+    false
+  );
 
-  // Strings
-  new Uint8Array(buffer, makeOffset, makeBytes.length).set(makeBytes);
-  new Uint8Array(buffer, modelOffset, modelBytes.length).set(modelBytes);
+  /*
+    Write strings.
+    */
+  new Uint8Array(
+    buffer,
+    makeOffset,
+    makeBytes.length
+  ).set(makeBytes);
 
-  // Exif IFD
+  new Uint8Array(
+    buffer,
+    modelOffset,
+    modelBytes.length
+  ).set(modelBytes);
+
+  /*
+    Exif IFD
+    */
   p = exifIfdOffset;
-  view.setUint16(p, exifCount, false);
+
+  view.setUint16(
+    p,
+    exifCount,
+    false
+  );
+
   p += 2;
 
-  // ColorSpace = sRGB (1)
-  writeIfdEntry(view, p, 40961, 3, 1, 1);
+  // ColorSpace = sRGB
+  writeIfdEntry(
+    view,
+    p,
+    40961,
+    3,
+    1,
+    1
+  );
   p += 12;
 
   // PixelXDimension
-  writeIfdEntry(view, p, 40962, 4, 1, width);
+  writeIfdEntry(
+    view,
+    p,
+    40962,
+    4,
+    1,
+    width
+  );
   p += 12;
 
   // PixelYDimension
-  writeIfdEntry(view, p, 40963, 4, 1, height);
+  writeIfdEntry(
+    view,
+    p,
+    40963,
+    4,
+    1,
+    height
+  );
   p += 12;
 
-  view.setUint32(p, 0, false);
+  // Next IFD
+  view.setUint32(
+    p,
+    0,
+    false
+  );
 
-  const tiffBytes = new Uint8Array(buffer);
+  const tiffBytes =
+    new Uint8Array(buffer);
 
-  // Exif APP1 payload starts with "Exif\0\0".
-  const exif = new Uint8Array(6 + tiffBytes.length);
-  exif.set([0x45,0x78,0x69,0x66,0x00,0x00], 0);
-  exif.set(tiffBytes, 6);
+  /*
+    APP1 EXIF payload:
+      Exif\0\0 + TIFF
+    */
+  const exif =
+    new Uint8Array(
+      6 + tiffBytes.length
+    );
+
+  exif.set(
+    [0x45, 0x78, 0x69, 0x66, 0x00, 0x00],
+    0
+  );
+
+  exif.set(
+    tiffBytes,
+    6
+  );
 
   return exif;
 }
 
-function writeIfdEntry(view, offset, tag, type, count, value) {
-  view.setUint16(offset, tag, false);
-  view.setUint16(offset + 2, type, false);
-  view.setUint32(offset + 4, count, false);
 
+function writeIfdEntry(
+  view,
+  offset,
+  tag,
+  type,
+  count,
+  value
+) {
+  view.setUint16(
+    offset,
+    tag,
+    false
+  );
+
+  view.setUint16(
+    offset + 2,
+    type,
+    false
+  );
+
+  view.setUint32(
+    offset + 4,
+    count,
+    false
+  );
+
+  /*
+    SHORT with count=1 occupies the first
+    two bytes of the 4-byte value field.
+    */
   if (type === 3 && count === 1) {
-    view.setUint16(offset + 8, value, false);
-    view.setUint16(offset + 10, 0, false);
+    view.setUint16(
+      offset + 8,
+      value,
+      false
+    );
+
+    view.setUint16(
+      offset + 10,
+      0,
+      false
+    );
+
   } else {
-    view.setUint32(offset + 8, value, false);
+    view.setUint32(
+      offset + 8,
+      value,
+      false
+    );
   }
 }
 
+
 function asciiBytes(text) {
-  const result = new Uint8Array(text.length);
+  const result =
+    new Uint8Array(text.length);
 
   for (let i = 0; i < text.length; i++) {
-    result[i] = text.charCodeAt(i) & 0xFF;
+    result[i] =
+      text.charCodeAt(i) & 0xFF;
   }
 
   return result;
 }
 
-function writeAscii(buffer, offset, text) {
-  const bytes = asciiBytes(text);
-  new Uint8Array(buffer, offset, bytes.length).set(bytes);
+
+function writeAscii(
+  buffer,
+  offset,
+  text
+) {
+  const bytes =
+    asciiBytes(text);
+
+  new Uint8Array(
+    buffer,
+    offset,
+    bytes.length
+  ).set(bytes);
 }
 
-/* ---------------- JPEG APP1 INSERTION ---------------- */
 
-function insertExifIntoJpeg(jpegDataUrl, exifData) {
-  const base64 = jpegDataUrl.substring(jpegDataUrl.indexOf(",") + 1);
-  const binary = atob(base64);
-  const jpeg = new Uint8Array(binary.length);
+/* =========================================================
+   JPEG EXIF INSERTION — BLOB VERSION
+   ========================================================= */
 
-  for (let i = 0; i < binary.length; i++) jpeg[i] = binary.charCodeAt(i);
+async function insertExifIntoJpegBlob(
+  jpegBlob,
+  exifData
+) {
+  const jpegBuffer =
+    await jpegBlob.arrayBuffer();
 
-  if (jpeg.length < 2 || jpeg[0] !== 0xFF || jpeg[1] !== 0xD8) {
-    throw new Error("Generated image is not a valid JPEG.");
+  const jpeg =
+    new Uint8Array(jpegBuffer);
+
+  if (
+    jpeg.length < 2 ||
+    jpeg[0] !== 0xFF ||
+    jpeg[1] !== 0xD8
+  ) {
+    throw new Error(
+      "Generated JPEG is invalid."
+    );
   }
 
-  const app1Length = exifData.length + 2;
-  if (app1Length > 0xFFFF) throw new Error("EXIF block is too large.");
+  /*
+    JPEG APP1 segment length includes
+    the two length bytes.
+    */
+  const app1Length =
+    exifData.length + 2;
 
-  const output = new Uint8Array(2 + 2 + 2 + exifData.length + (jpeg.length - 2));
+  if (app1Length > 0xFFFF) {
+    throw new Error(
+      "EXIF block is too large."
+    );
+  }
+
+  const output =
+    new Uint8Array(
+      2 +
+      2 +
+      2 +
+      exifData.length +
+      (jpeg.length - 2)
+    );
+
   let p = 0;
 
-  // JPEG SOI
+  // SOI
   output[p++] = 0xFF;
   output[p++] = 0xD8;
 
-  // APP1 marker
+  // APP1
   output[p++] = 0xFF;
   output[p++] = 0xE1;
 
-  // APP1 segment length includes these two bytes.
-  output[p++] = (app1Length >> 8) & 0xFF;
-  output[p++] = app1Length & 0xFF;
+  // Segment length
+  output[p++] =
+    (app1Length >> 8) & 0xFF;
 
-  output.set(exifData, p);
+  output[p++] =
+    app1Length & 0xFF;
+
+  // EXIF
+  output.set(
+    exifData,
+    p
+  );
+
   p += exifData.length;
 
-  // Everything after the original JPEG SOI.
-  output.set(jpeg.subarray(2), p);
+  // Remaining JPEG bytes
+  output.set(
+    jpeg.subarray(2),
+    p
+  );
 
-  return bytesToDataUrl(output, "image/jpeg");
+  /*
+    Return an actual Blob.
+    This is the key Safari download fix.
+  */
+  return new Blob(
+    [output],
+    { type: "image/jpeg" }
+  );
 }
 
-function dataUrlToBlob(dataUrl, mimeType) {
-  const base64 = dataUrl.substring(dataUrl.indexOf(",") + 1);
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
 
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: mimeType });
+/* =========================================================
+   BLOB → BASE64
+   ========================================================= */
+
+function blobToBase64(blob) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+
+    reader.onload = function () {
+      try {
+        const dataUrl = reader.result;
+        const comma = dataUrl.indexOf(",");
+
+        if (comma === -1) {
+          reject(new Error(
+            "Could not create Base64."
+          ));
+          return;
+        }
+
+        resolve(
+          dataUrl.slice(comma + 1)
+        );
+
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    reader.onerror = function () {
+      reject(
+        reader.error ||
+        new Error("Could not read converted JPEG.")
+      );
+    };
+
+    reader.readAsDataURL(blob);
+  });
 }
 
-function bytesToDataUrl(bytes, mimeType) {
-  const chunkSize = 0x8000;
-  let binary = "";
 
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-    binary += String.fromCharCode.apply(null, chunk);
-  }
-
-  return `data:${mimeType};base64,${btoa(binary)}`;
-}
-
-/* ---------------- CLIPBOARD ---------------- */
+/* =========================================================
+   CLIPBOARD
+   ========================================================= */
 
 async function copyText(text) {
-  if (navigator.clipboard && window.isSecureContext) {
+  /*
+    Modern Safari / HTTPS.
+    */
+  if (
+    navigator.clipboard &&
+    window.isSecureContext
+  ) {
     await navigator.clipboard.writeText(text);
     return;
   }
 
-  const textarea = document.createElement("textarea");
+  /*
+    Legacy fallback.
+    */
+  const textarea =
+    document.createElement("textarea");
+
   textarea.value = text;
+
   textarea.style.position = "fixed";
   textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  textarea.style.opacity = "0";
+
   document.body.appendChild(textarea);
+
   textarea.focus();
   textarea.select();
 
-  const success = document.execCommand("copy");
+  const success =
+    document.execCommand("copy");
+
   textarea.remove();
 
   if (!success) {
-    throw new Error("Clipboard access was denied.");
+    throw new Error(
+      "Clipboard access was denied."
+    );
   }
 }
+
+
+/* =========================================================
+   CLEANUP
+   ========================================================= */
+
+window.addEventListener("beforeunload", function () {
+  if (currentObjectUrl) {
+    URL.revokeObjectURL(currentObjectUrl);
+  }
+
+  if (convertedObjectUrl) {
+    URL.revokeObjectURL(convertedObjectUrl);
+  }
+});
 </script>
 </body>
 </html>
